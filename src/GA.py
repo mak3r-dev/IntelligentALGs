@@ -14,6 +14,7 @@ class solution:
         self.max_char_pool : int = max_char_pool
         self.value : list[str] = [] if not value else value
         self.fitness_score : int = problem_dimension if best else 0
+        self.h_n = 0
 
         if (best == False): 
             self.__init_random_solution()
@@ -29,6 +30,7 @@ class solution:
 
     def calculate_fitness(self, best : solution):
         self.fitness_score = sum([1 if self.value[i] == best.value[i] else 0 for i in range(0,self.dimension)])
+        self.h_n = best.fitness_score - self.fitness_score
 
 class GA:
 
@@ -47,18 +49,21 @@ class GA:
 
         self.survivors : list[set[solution]] = []
         self.offsprings : list[solution] = []
+        self.generation = 0
 
         self.__generate_population_pool()
 
     def GA_Run(self):
-             
-        while self.best_solution.fitness_score < self.problem_solution.fitness_score:
+
+        # for i in range(130):
+        while self.best_solution.fitness_score < self.problem_solution.fitness_score:  
         
             self.__dominant_selection()
             self.__tournament()
             self.__evaluate()
 
-        
+            self.generation += 1
+    
     # Private methods
     def __generate_population_pool(self):
 
@@ -92,14 +97,6 @@ class GA:
         for tourney_pair in tourny_pairs:
             pair : list[solution] = list(tourney_pair)
 
-            # First Path (Introduce new variables to avoid local optima traps)
-            # winner : solution = solution(self.problem_dimension)
-            # if (pair[0].fitness_score > pair[1].fitness_score):
-            #     winner = pair[0]
-            # elif pair[1].fitness_score > pair[0].fitness_score:
-            #     winner = pair[1]
-
-            # Second Path : class method to keep consistency
             winner : solution = pair[0] if pair[0].fitness_score >= pair[1].fitness_score else pair[1]
             dominant_parents.append(winner)
 
@@ -113,17 +110,15 @@ class GA:
             sur_pair.extend([dominant_parents[i],dominant_parents[i+1]])
 
             self.survivors.append(sur_pair)
-
+    
         # 4. Select new childs using crossover
-        self.__crossover()
-
-        # Third Path (introduce random gene mutation). Similar to first path however it affects the gene not the chromosome.
-        self._mutation()
+        self.crossover()
+        self.targeted_mutation()
 
     def __roulette(self):
         total_fitness_of_population : int = sum([sol.fitness_score for sol in self.population_pool])
 
-    def __crossover(self):
+    def crossover(self):
 
         slice_length : int = random.randint(self.min_slice,self.problem_dimension - 1)
 
@@ -149,8 +144,9 @@ class GA:
             offspring2.value.extend(survivor2_slice[0])
 
             self.offsprings.extend([offspring1,offspring2])
-
-    def _mutation(self):
+    
+    # GENERAL SCOPE -  slow
+    def mutation(self):
         rate = 1 / self.problem_dimension
 
         for offspring in self.offsprings:
@@ -159,13 +155,43 @@ class GA:
                if (random.random() < rate):
                    offspring.value[i] = random.choice(CHAR_LIST)
 
+    # GENERAL SCOPE - mildly fast
+    def hill_climbing(self):
+        rate = 1 / self.problem_dimension
+
+        for offspring in self.offsprings:
+
+            new_value = solution(self.problem_dimension)
+            new_value.value = offspring.value
+            for i in range(0,self.problem_dimension):
+               if (random.random() < rate):
+                   new_value.value[i] = random.choice(CHAR_LIST)
+
+            new_value.calculate_fitness(self.problem_solution)
+            if new_value.fitness_score >= offspring.fitness_score:
+                offspring.value = new_value.value
+
+    # TARGETED SCOPE - very fast
+    def targeted_mutation(self):
+
+        for offspring in self.offsprings:
+
+            for i in range(0,self.problem_dimension):
+                if (offspring.value[i] != self.problem_solution.value[i]):
+                    offspring.value[i] = random.choice(CHAR_LIST)    
+
     def __evaluate(self):
     
         for offspring in self.offsprings:
             offspring.calculate_fitness(self.problem_solution)   
 
-            if offspring.fitness_score > self.best_solution.fitness_score:         
+            # greedy best first - improves convergence time midly
+            if offspring.h_n < self.best_solution.h_n:
                 self.best_solution = offspring
+
+            # NORMAL - Adds a small overhead to convergence time
+            # if offspring.fitness_score > self.best_solution.fitness_score:         
+            #     self.best_solution = offspring
 
         if self.best_solution.fitness_score < self.problem_solution.fitness_score:
             self.population_pool = []
@@ -174,6 +200,6 @@ class GA:
 
         print(f"Best Solution is, {self.best_solution.value}")
 
-p_d = 7
-GENETIC_ALGORITHMS = GA(500,p_d,solution(p_d,['H','E','L','L','O',' ','W'],True))
+p_d = 11
+GENETIC_ALGORITHMS = GA(200,p_d,solution(p_d,['H','E','L','L','O', ' ','W','O','R','L','D'],True))
 GENETIC_ALGORITHMS.GA_Run()
